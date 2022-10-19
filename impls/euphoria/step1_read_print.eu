@@ -1,0 +1,140 @@
+include std/graphics.e
+include std/graphcst.e
+include std/console.e
+-- include std/os.e
+-- include std/text.e
+
+include reader.e as reader
+include printer.e as printer
+
+
+constant TRUE = 1, FALSE = 0
+
+-- output device:
+constant SCREEN = 1
+
+--arrow keys:
+constant ARROW_DOWN  = 1016382,
+         ARROW_LEFT  = 1016384,
+         ARROW_UP    = 1016400,
+         ARROW_RIGHT = 1016416
+
+
+-- special input characters
+constant CONTROL_B = 2,
+		 CONTROL_C = 3,
+		 CONTROL_D = 4,   -- alternate key for line-delete
+
+         BS = 8,
+		 CONTROL_L = 12,
+		 CONTROL_P = 16,  -- alternate key for PAGE-DOWN in Linux.
+						  -- DOS uses this key for printing or something.
+		 CONTROL_R = 18,
+		 CONTROL_T = 20,
+		 CONTROL_U = 21   -- alternate key for PAGE-UP in Linux
+
+function READ(sequence input)
+    return reader:read_str(input)
+end function
+
+function EVAL(sequence term)
+    return term
+end function
+
+function PRINT(sequence str)
+    return printer:pr_str(str)
+end function
+
+function rep(sequence str)
+    sequence read = READ(str)
+    sequence eval = EVAL(read)
+    sequence pr = PRINT(eval)
+    return pr
+end function
+
+-- READ, EVAL, PRINT, and rep
+function min(atom a, atom b)
+    if a < b then
+        return a
+    end if
+    return b
+end function
+function max(atom a, atom b)
+    if a > b then
+        return a
+    end if
+    return b
+end function
+
+--with trace
+ifdef WINDOWS then
+function gets_keys() -- doesn't work perfectly in linux, but passes tests
+    integer c
+    sequence str = ""
+    sequence pos = get_position()
+    sequence kc = key_codes()
+    sequence curr
+    integer newCol
+    integer strPos = 0
+
+--    trace(1)
+    while TRUE do
+        c = get_key()
+        curr = get_position()
+        newCol = curr[2]
+        strPos = curr[2] - pos[2] + 1
+        if c >= 32 and c <= 255 then
+            -- insert c into slot strPos
+            sequence tail = c & str[strPos..$]
+            str = str[1..strPos-1] & tail
+            puts(1, tail)
+            newCol += 1
+        elsif c = '\n' or c = '\r' then
+            return str
+        elsif c = CONTROL_D then
+            return {c}
+        elsif c = BS then
+            if strPos > 1 then
+                -- remove previous strPos
+                sequence tail = str[strPos..$]
+                str = str[1..strPos-2] & tail
+                newCol = max(newCol-1, pos[2])
+                position(curr[1], newCol)
+                puts(1, tail & " ")
+            end if
+        elsif c = kc[KC_LEFT] then
+            --newCol = max(curr[2]-1, pos[2])
+            newCol = pos[2] + max(strPos - 2, 0)
+        elsif c = kc[KC_RIGHT] then
+            -- newCol = min(curr[2]+1, pos[2]+length(str))
+            newCol = pos[2] + min(strPos, length(str))
+        elsif c = kc[KC_HOME] then
+            newCol = pos[2]
+        elsif c = kc[KC_END] then
+            newCol = pos[2] + length(str)
+        end if
+        position(curr[1], newCol)
+    end while
+end function
+
+elsifdef UNIX then
+
+function gets_keys()
+    object c = gets(0)
+    if atom(c) and c = -1 then
+        return {CONTROL_D}
+    end if
+    return c[1..$-1]
+end function
+
+end ifdef
+--
+
+while 1 do
+    puts(1, "user> ")
+    sequence input = gets_keys()
+    if equal(input, "quit") or equal(input, {CONTROL_D}) then
+        exit
+    end if
+    printf(1, "\n%s\n", {rep(input)})
+end while
